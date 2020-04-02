@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html>
 
@@ -5,12 +6,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
     <title>MAVIDS</title>
-    <link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16x16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32x32.png">
-    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
-    <link rel="stylesheet" href="assets/css/Login-Form-Clean.css">
-    <link rel="stylesheet" href="assets/css/styles.css">
-    <link rel="stylesheet" href="assets/css/Toggle-Switch.css">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'gcsclient/img/favicon-16x16.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'gcsclient/img/favicon-32x32.png' %}">
+    <link rel="stylesheet" href="{% static 'gcsclient/bootstrap/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'gcsclient/css/Login-Form-Clean.css' %}">
+    <link rel="stylesheet" href="{% static 'gcsclient/css/styles.css' %}">
+    <link rel="stylesheet" href="{% static 'gcsclient/css/Toggle-Switch.css' %}">
 </head>
 
 <body style="background-color: rgb(238,239,239);">
@@ -24,8 +25,8 @@
             <div class="form-group"><input class="form-control" type="password" name="password" placeholder="Password"></div>
             <div class="form-group"><button class="btn btn-primary btn-block" type="submit" style="background-color: rgb(71,130,244);">Log In</button></div><a class="forgot" href="#" style="color: rgb(253,254,255);">Forgot your email or password?</a></form>
     </div>
-    <script src="assets/js/jquery.min.js"></script>
-    <script src="assets/bootstrap/js/bootstrap.min.js"></script>
+    <script src="{% static 'gcsclient/js/jquery.min.js' %}"></script>
+    <script src="{% static 'gcsclient/bootstrap/js/bootstrap.min.js' %}"></script>
 </body>
 
 </html>

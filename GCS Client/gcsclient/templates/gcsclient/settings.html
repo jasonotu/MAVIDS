@@ -1,10 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
-<h1>Settings</h1>
-</body>
-</html>
+{% extends "gcsclient/base.html" %}
+{% block content %}
+    <div class="container" style="padding-top: 15px;">
+        <h5>Settings</h5>
+        <hr>
+    </div>
+    <div>
+        <div class="container">
+            <div class="form-group">
+                <p>Enabled detection modules:</p>
+                <div class="custom-control custom-control-inline custom-switch"><input class="custom-control-input" type="checkbox" id="formCheck-1"><label class="custom-control-label" for="formCheck-1">Denial of Service</label></div>
+                <div class="custom-control custom-control-inline custom-switch"><input class="custom-control-input" type="checkbox" id="formCheck-2"><label class="custom-control-label" for="formCheck-2">GPS Spoofing</label></div>
+                <p style="padding-top: 14px;">Default mitigation action when attack is detected:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</p><select class="custom-select d-lg-flex" style="width: 170px;margin-bottom: 14px;"><option value="" selected="">Alert Only</option><option value="12">Return to Home</option><option value="13">Hover</option><option value="14">Land</option><option value="">Disable Telemetry</option></select>
+                <p>Time until default mitigation action is initiated (seconds):</p><input type="number" style="width: 60px;" min="0" max="60" step="1">
+                <p style="margin-top: 15px;">Time until returning to previous flight mode (if 0, UAV will not continue mission after mitigation action is completed):</p><input type="number" style="width: 60px;">
+                <p style="margin-top: 15px;">UAV connection method (when selecting GCS, MAVIDS will attempt to connect to the local GCS UDP&nbsp;port):</p><select class="custom-select" style="width: 170px;"><option value="13">Local GCS</option><option value="14">Direct Connection</option></select>
+                <button
+                    class="btn btn-primary d-block" type="button" style="margin-top: 20px;">Save</button>
+            </div>
+        </div>
+    </div>
+{% endblock %}
