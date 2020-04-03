@@ -30,7 +30,7 @@
             </div>
                 <a href="#" class="nav-link dropdown-toggle" data-toggle="dropdown" style="color: rgba(255,255,255,0.5);">{{request.user.username}}</a>
                 <div class="dropdown-menu dropdown-menu-right">
-                    <a href="{% url 'logout' %}"class="dropdown-item">Logout</a>
+                    <a href="{% url 'logout' %}?next=/"class="dropdown-item">Logout</a>
                 </div>
             </div>
         </div>
