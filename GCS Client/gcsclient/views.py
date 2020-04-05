@@ -5,8 +5,8 @@ from .models import Settings
 
 def login(request):
     if request.method == 'POST':
-        username = request.POST['username']
-        password = request.POST['password']
+        username = request.POST.get('username')
+        password = request.POST.get('password')
         user = authenticate(username=username, password=password)
         if user is not None:
             if user.is_active:
@@ -26,11 +26,11 @@ def settings(request):
     }
 
     if request.method == 'POST':
-        if request.POST.get('check_dos', '') == 'on':
+        if request.POST.get('check_dos') == 'on':
             setting.dos_enabled = True
         else:
             setting.dos_enabled = False
-        if request.POST.get('check_gps', '') == 'on':
+        if request.POST.get('check_gps') == 'on':
             setting.gps_enabled = True
         else:
             setting.gps_enabled = False
