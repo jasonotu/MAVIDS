@@ -7,15 +7,17 @@
     <div>
         <div class="container">
             <div class="form-group">
+                <form method="post" action="{% url 'gcsclient-settings' %}">
+                {% csrf_token %}
                 <p>Enabled detection modules:</p>
-                <div class="custom-control custom-control-inline custom-switch"><input class="custom-control-input" type="checkbox" id="formCheck-1"><label class="custom-control-label" for="formCheck-1">Denial of Service</label></div>
-                <div class="custom-control custom-control-inline custom-switch"><input class="custom-control-input" type="checkbox" id="formCheck-2"><label class="custom-control-label" for="formCheck-2">GPS Spoofing</label></div>
-                <p style="padding-top: 14px;">Default mitigation action when attack is detected:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</p><select class="custom-select d-lg-flex" style="width: 170px;margin-bottom: 14px;"><option value="" selected="">Alert Only</option><option value="12">Return to Home</option><option value="13">Hover</option><option value="14">Land</option><option value="">Disable Telemetry</option></select>
-                <p>Time until default mitigation action is initiated (seconds):</p><input type="number" style="width: 60px;" min="0" max="60" step="1">
-                <p style="margin-top: 15px;">Time until returning to previous flight mode (if 0, UAV will not continue mission after mitigation action is completed):</p><input type="number" style="width: 60px;">
-                <p style="margin-top: 15px;">UAV connection method (when selecting GCS, MAVIDS will attempt to connect to the local GCS UDP&nbsp;port):</p><select class="custom-select" style="width: 170px;"><option value="13">Local GCS</option><option value="14">Direct Connection</option></select>
-                <button
-                    class="btn btn-primary d-block" type="button" style="margin-top: 20px;">Save</button>
+                <div class="custom-control custom-control-inline custom-switch"><input class="custom-control-input" type="checkbox" id="check_dos" name="check_dos" {% if setting.dos_enabled %}checked{% endif %}><label class="custom-control-label" for="check_dos">Denial of Service</label></div>
+                <div class="custom-control custom-control-inline custom-switch"><input class="custom-control-input" type="checkbox" id="check_gps" name="check_gps" {% if setting.gps_enabled %}checked{% endif %}><label class="custom-control-label" for="check_gps">GPS Spoofing</label></div>
+                <p style="padding-top: 14px;">Default mitigation action when attack is detected:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</p><select class="custom-select d-lg-flex" style="width: 170px;margin-bottom: 14px;" name="default_action"><option value="RTH" {% if setting.default_action == 'RTH' %}selected{% endif %}>Return to Home</option><option value="HOVER" {% if setting.default_action == 'HOVER' %}selected{% endif %}>Hover</option><option value="LAND" {% if setting.default_action == 'LAND' %}selected{% endif %}>Land</option><option value="TELEM" {% if setting.default_action == 'TELEM' %}selected{% endif %}>Disable Telemetry</option><option value="ALERT" {% if setting.default_action == 'ALERT' %}selected{% endif %}>Alert Only</option></select>
+                <p>Time until default mitigation action is initiated (seconds):</p><input type="number" style="width: 60px;" min="0" max="60" step="1" name="default_initiate_time" value="{{ setting.default_initiate_time }}">
+                <p style="margin-top: 15px;">Time until returning to previous flight mode (if 0, UAV will not continue mission after mitigation action is completed):</p><input type="number" style="width: 60px;" min="0" max="60" step="1" name="default_return_time" value="{{ setting.default_return_time }}">
+                <p style="margin-top: 15px;">UAV connection method (when selecting GCS, MAVIDS will attempt to connect to the local GCS UDP&nbsp;port):</p><select class="custom-select" style="width: 170px;" name="connection_method"><option value="GCS" {% if setting.connection_method == 'GCS' %}selected{% endif %}>Local GCS</option><option value="DIRECT" {% if setting.connection_method == 'DIRECT' %}selected{% endif %}>Direct Connection</option></select>
+                <button class="btn btn-primary d-block" type="submit" style="margin-top: 20px;">Save</button>
+                </form>
             </div>
         </div>
     </div>

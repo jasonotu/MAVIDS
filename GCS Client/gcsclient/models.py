@@ -15,14 +15,16 @@ class Settings(models.Model):
         ('DIRECT', 'Direction Connection'),
         ]
 
-    enabled_modules = models.BooleanField()
+    dos_enabled = models.BooleanField(default=False)
+    gps_enabled = models.BooleanField(default=False)
     default_action = models.CharField(
         max_length=6,
         choices=MITIGATION_ACTIONS,
         default='RTH')
-    default_initiate_time = models.IntegerField()
-    default_return_time = models.IntegerField()
+    default_initiate_time = models.IntegerField(default=0)
+    default_return_time = models.IntegerField(default=0)
     connection_method = models.CharField(
         max_length=6,
         choices=CONNECTION_METHODS,
         default='GCS')
+
