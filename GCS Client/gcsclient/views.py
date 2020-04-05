@@ -35,10 +35,10 @@ def settings(request):
         else:
             setting.gps_enabled = False
 
-        setting.default_action = request.POST['default_action']
-        setting.default_initiate_time = request.POST['default_initiate_time']
-        setting.default_return_time = request.POST['default_return_time']
-        setting.connection_method = request.POST['connection_method']
+        setting.default_action = request.POST.get('default_action')
+        setting.default_initiate_time = request.POST.get('default_initiate_time')
+        setting.default_return_time = request.POST.get('default_return_time')
+        setting.connection_method = request.POST.get('connection_method')
         setting.save()
 
     return render(request, 'gcsclient/settings.html', context)
