@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, authenticate
 from .models import Settings
+from .utils import train_OneClassSVM
 
 def login(request):
     if request.method == 'POST':
@@ -45,6 +46,7 @@ def settings(request):
 
 @login_required()
 def training(request):
+    train_OneClassSVM()
     return render(request, 'gcsclient/training.html')
 
 @login_required()
