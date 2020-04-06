@@ -28,8 +28,8 @@ def optimize_OneClassSVM(X, n):
     print("Found: nu = %f, gamma = %f" % (opt_nu, opt_gamma))
     return opt_nu, opt_gamma
 
-
 def train_OneClassSVM():
+    output = ''
     # load CSVs
     df_benign_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\NORMAL_DOS_V_FINAL.csv')
     df_malicious_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\DOS_DATASET_V_FINAL.csv')
@@ -39,13 +39,13 @@ def train_OneClassSVM():
     df_malicious_flight = df_malicious_flight.drop(columns=['timestamp'])
 
     # print the first 5 rows of each dataframe
-    print("Original Values:\n")
-    print("df_benign_flight_train: \n%s\n" % df_benign_flight_train[0:5].to_string())
-    print("df_malicious_flight_pred: \n%s\n" % df_malicious_flight_pred[0:5].to_string())
-    print("df_malicious_flight: \n%s\n" % df_malicious_flight[0:5].to_string())
+    output += "Original Values:\n"
+    output += "df_benign_flight_train: \n%s\n" % df_benign_flight_train[0:5].to_string()
+    output += "df_malicious_flight_pred: \n%s\n" % df_malicious_flight_pred[0:5].to_string()
+    output += "df_malicious_flight: \n%s\n" % df_malicious_flight[0:5].to_string()
 
-    print(f"Benign count: {len(df_benign_flight_train)}")
-    print(f"Malicious count: {len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])}")
+    output += "Benign count: " + str(len(df_benign_flight_train)) + "\n"
+    output += "Malicious count: " + str(len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])) + "\n"
 
     nu_opt, gamma_opt = optimize_OneClassSVM(df_benign_flight_train, 10)
 
@@ -60,7 +60,9 @@ def train_OneClassSVM():
     y_true = y_true.replace({'benign': 1})
     y_true = y_true.replace('malicious', -1)
 
-    print(model.score_samples(df_malicious_flight_pred))  # get raw scores
+    #output += str(model.score_samples(df_malicious_flight_pred)) # get raw scores
 
-    print(metrics.classification_report(y_true, y_pred, digits=4))
-    print(metrics.confusion_matrix(y_true, y_pred))
+    output += str(metrics.classification_report(y_true, y_pred, digits=4))
+    output += str(metrics.confusion_matrix(y_true, y_pred))
+
+    return output

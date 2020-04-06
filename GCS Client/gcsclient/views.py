@@ -46,8 +46,15 @@ def settings(request):
 
 @login_required()
 def training(request):
-    train_OneClassSVM()
-    return render(request, 'gcsclient/training.html')
+    output = ''
+    if request.method == 'POST':
+        if request.POST.get('ocsvm') == 'on':
+            output = train_OneClassSVM()
+
+    context = {
+        'output': output
+    }
+    return render(request, 'gcsclient/training.html', context)
 
 @login_required()
 def reports(request):
