@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, authenticate
 from .models import Settings
-from .utils import train_OneClassSVM
+from .utils import train_OneClassSVM, train_LocalOutlierFactor, train_Autoencoder
 
 def login(request):
     if request.method == 'POST':
@@ -49,7 +49,14 @@ def training(request):
     output = ''
     if request.method == 'POST':
         if request.POST.get('ocsvm') == 'on':
-            output = train_OneClassSVM()
+            output += "\n=======One-Class SVM=======\n"
+            output += train_OneClassSVM()
+        if request.POST.get('autoencoder') == 'on':
+            output += "\n========Autoencoder========\n"
+            output += train_Autoencoder()
+        if request.POST.get('lof') == 'on':
+            output += "\n=======Local Outlier Factor=======\n"
+            output += train_LocalOutlierFactor()
 
     context = {
         'output': output

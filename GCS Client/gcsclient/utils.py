@@ -5,8 +5,14 @@ import pandas as pd
 import numpy as np
 import os
 from sklearn import metrics
-from sklearn import preprocessing
 from sklearn import svm
+from sklearn.neighbors import LocalOutlierFactor
+from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.callbacks import EarlyStopping
 from pymavlink import mavutil
 from .models import Settings
 
@@ -68,6 +74,136 @@ def train_OneClassSVM():
 
     output += str(metrics.classification_report(y_true, y_pred, digits=4))
     output += str(metrics.confusion_matrix(y_true, y_pred))
+
+    return output
+
+def train_LocalOutlierFactor():
+    output = ''
+    # load CSVs
+    df_benign_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\NORMAL_DOS_V_FINAL.csv')
+    df_malicious_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\DOS_DATASET_V_FINAL.csv')
+
+    df_benign_flight_train = df_benign_flight.drop(columns=['timestamp', 'label'])
+    df_malicious_flight_pred = df_malicious_flight.drop(columns=['timestamp', 'label'])
+    df_malicious_flight = df_malicious_flight.drop(columns=['timestamp'])
+
+    df_benign_flight_train = df_benign_flight[
+        ['load', 'vibration_x', 'vibration_y', 'servo1_raw', 'servo3_raw', 'servo5_raw', 'servo6_raw', 'q3', 'xgyro',
+         'pitch', 'rollspeed', 'yacc']]
+    df_malicious_flight_pred = df_malicious_flight_pred[
+        ['load', 'vibration_x', 'vibration_y', 'servo1_raw', 'servo3_raw', 'servo5_raw', 'servo6_raw', 'q3', 'xgyro',
+         'pitch', 'rollspeed', 'yacc']]
+    df_malicious_flight = df_malicious_flight[
+        ['label', 'load', 'vibration_x', 'vibration_y', 'servo1_raw', 'servo3_raw', 'servo5_raw', 'servo6_raw', 'q3',
+         'xgyro', 'pitch', 'rollspeed', 'yacc']]
+    # df_malicious_flight_train = df_malicious_flight.drop(columns=['timestamp', 'label'])
+
+    # print the first 5 rows of each dataframe
+    output += "Original Values:\n"
+    output += "df_benign_flight_train: \n%s\n" % df_benign_flight_train[0:5].to_string()
+    output += "df_malicious_flight_pred: \n%s\n" % df_malicious_flight_pred[0:5].to_string()
+    output += "df_malicious_flight: \n%s\n" % df_malicious_flight[0:5].to_string()
+
+    """*   Run classifier and print predictions
+    *   We are using the entire malicious flight for training. We don't *have* to, but we do to properly score the performance. Otherwise the predictions and truths aren't lined up/accurate
+    """
+
+    output += "Benign count: " + str(len(df_benign_flight_train)) + "\n"
+    output += "Malicious count: " + str(len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])) + "\n"
+
+    # neighbours at 61 gives lower false positive rate than n=30
+    model = LocalOutlierFactor(n_neighbors=61, novelty=True, contamination=0.1)
+    model.fit(df_benign_flight_train)
+
+    pickle.dump(model, open('finalized_model.sav', 'wb'))
+
+    y_pred = model.predict(df_malicious_flight_pred)
+    y_true = df_malicious_flight[['label']]
+
+    y_true = y_true.replace({'benign': 1})
+    y_true = y_true.replace('malicious', -1)
+
+    output += str(metrics.classification_report(y_true, y_pred, digits=5))
+    output += str(metrics.confusion_matrix(y_true, y_pred))
+
+    return output
+
+def train_Autoencoder():
+    output = ''
+    # load CSVs
+    df_benign_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\NORMAL_DOS_V_FINAL.csv')
+    df_malicious_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\DOS_DATASET_V_FINAL.csv')
+
+    df_benign_flight = df_benign_flight[
+        ['timestamp', 'label', 'load', 'vibration_x', 'vibration_y', 'servo1_raw', 'servo3_raw', 'servo5_raw',
+         'servo6_raw', 'q3', 'xgyro', 'pitch', 'rollspeed', 'yacc']]
+    df_malicious_flight = df_malicious_flight[
+        ['timestamp', 'label', 'load', 'vibration_x', 'vibration_y', 'servo1_raw', 'servo3_raw', 'servo5_raw',
+         'servo6_raw', 'q3', 'xgyro', 'pitch', 'rollspeed', 'yacc']]
+    # split benign
+    df_benign_flight_train, df_benign_flight_test = train_test_split(df_benign_flight, test_size=0.05, random_state=1)  # split x% of benign to test RMSE against
+
+    # keep only features and label if applicable
+    df_benign_flight_train = df_benign_flight_train.drop(columns=['timestamp', 'label'])
+    df_benign_flight_test = df_benign_flight_test.drop(columns=['timestamp', 'label'])
+    df_malicious_flight = df_malicious_flight.drop(columns=['timestamp'])
+    df_malicious_flight_pred = df_malicious_flight.drop(columns=['label'])
+    df_malicious_flight_test = df_malicious_flight_pred.loc[df_malicious_flight['label'] == 'malicious']
+
+    # print the first 5 rows of each dataframe
+    output += "Original Values:\n"
+    output += "df_benign_flight_train:\n%s\n" % df_benign_flight_train[0:5].to_string()
+    output += "df_benign_flight_test:\n%s\n" % df_benign_flight_test[0:5].to_string()
+    output += "df_malicious_flight: \n%s\n" % df_malicious_flight[0:5].to_string()
+    output += "df_malicious_flight_pred: \n%s\n" % df_malicious_flight_pred[0:5].to_string()
+
+    output += "Benign count: " + str(len(df_benign_flight_train)) + "\n"
+    output += "Malicious count: " + str(len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])) + "\n"
+
+    # This is the numeric feature vector, as it goes to the neural net
+    x_benign_train = df_benign_flight_train.values
+    x_benign_sample = df_benign_flight_test.values
+    x_malicious_sample = df_malicious_flight_test.values
+
+    model = Sequential()
+    model.add(Dense(25, input_dim=x_benign_train.shape[1], activation='relu'))
+    model.add(Dense(3, activation='relu'))
+    model.add(Dense(25, activation='relu'))
+    model.add(Dense(x_benign_train.shape[1]))  # Multiple output neurons
+    model.compile(loss='mean_squared_error', optimizer='adam')
+    monitor = EarlyStopping(monitor="loss", min_delta=1e-3, restore_best_weights=True)
+    model.fit(x_benign_train, x_benign_train, verbose=1, epochs=100, callbacks=[monitor])
+
+    #pickle.dump(model, open('finalized_model.sav', 'wb'))
+
+    pred = model.predict(x_benign_train)
+    score1 = metrics.mean_squared_error(pred, x_benign_train)
+    pred = model.predict(x_benign_sample)
+    score2 = metrics.mean_squared_error(pred, x_benign_sample)
+    pred = model.predict(x_malicious_sample)
+    score3 = metrics.mean_squared_error(pred, x_malicious_sample)
+    output += f"Insample Benign Score (MSE): " + str(score1) + "\n"
+    output += f"Out of Sample Benign Score (MSE): " + str(score2) + "\n"
+    output += f"Malicious Score (MSE): " + str(score3) + "\n"
+
+    threshold = 0.991
+    y_pred = pd.DataFrame()
+    predicted = model.predict(df_malicious_flight_pred)
+    mse = np.mean(np.power(df_malicious_flight_pred - predicted, 2), axis=1)
+    y_pred['MSE'] = mse
+    mse_threshold = np.quantile(y_pred['MSE'], threshold)
+    output += f'Selected threshold: {threshold * 100}%' + "\n"
+    output += f'Calculated MSE threshold: {mse_threshold}' + "\n"
+    y_pred['label'] = 1
+    y_pred.loc[y_pred['MSE'] > mse_threshold, 'label'] = -1
+
+    y_true = df_malicious_flight[['label']]
+    y_true = y_true.replace({'benign': 1})
+    y_true = y_true.replace('malicious', -1)
+
+    output += f"Malicious count: {len(y_pred.loc[y_pred['label'] == -1])}" + "\n"
+    output += str(classification_report(y_true, y_pred['label'], digits=4)) + "\n"
+    output += str(confusion_matrix(y_true, y_pred['label'])) + "\n"
 
     return output
 
