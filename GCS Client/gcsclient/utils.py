@@ -21,6 +21,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__)) + "\..\..\libraries")
 print(sys.path)
 import pymavlink_custom
 
+os.environ['MAVLINK20'] = "1"
+pymavlink_custom.mavutil.set_dialect("MAVIDS")
+
 # optimization function modified from: https://github.com/spacesense-ai/spacesense/blob/master/spacesense/utils.py
 def optimize_OneClassSVM(X, n):
     print('Searching for optimal hyperparameters...')
