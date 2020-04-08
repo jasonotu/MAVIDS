@@ -55,7 +55,6 @@ for key, value in feautres.items():
             results = []
             for record in table.records:
                 results.append(record.get_value())
-                break
             final[key+"-"+feature] = results
 
 # Outputs values
