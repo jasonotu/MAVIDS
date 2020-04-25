@@ -1,4 +1,4 @@
-# Prediction for DoS messages. Be sure to change model_file to correct full path
+# Prediction for GPS messages. Be sure to change model_file to correct full path
 
 from influx_reader import *
 from prediction import *
@@ -14,12 +14,13 @@ range = "-30d"
 
 # Define all MAVLink messages and their features that you would like to load
 # These are all the features for DoS
-features = {    "VIBRATION": ["vibration_x", "vibration_y"],
-                "SYS_STATUS": ["load"],
-                "SERVO_OUTPUT_RAW": ["servo1_raw", "servo3_raw", "servo5_raw", "servo6_raw"],
-                "HIGHRES_IMU": ["xgyro", "yacc"],
-                "ATTITUDE": ["pitch", "rollspeed"],
-                "ATTITUDE_QUATERNION": ["q3"]
+features = {    "ESTIMATOR_STATUS": ["pos_horiz_ratio", "flags"],
+                "VIBRATION": ["vibration_z"],
+                "ATTITUDE_QUATERNION": ["q1", "q4"],
+                "HIGHRES_IMU": ["xmag"],
+                "ATTITUDE": ["yaw"],
+                "VFR_HUD": ["heading"],
+                "LOCAL_POSITION_NED" : ["vx"]
                 }
 
 # Full path to saved model file using pickle
