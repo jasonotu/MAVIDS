@@ -3908,17 +3908,17 @@ class MAVLink_mavids_message(MAVLink_message):
         name = 'MAVIDS'
         fieldnames = ['time_usec', 'target_system', 'message_mode', 'alert_id', 'attack_name', 'attack_score', 'default_action', 'default_initiate_time', 'default_return_time', 'modules_enabled']
         ordered_fieldnames = ['time_usec', 'attack_score', 'target_system', 'message_mode', 'alert_id', 'attack_name', 'default_action', 'default_initiate_time', 'default_return_time', 'modules_enabled']
-        fieldtypes = ['uint64_t', 'uint8_t', 'uint8_t', 'uint8_t', 'char', 'float', 'uint8_t', 'uint8_t', 'uint8_t', 'uint8_t']
+        fieldtypes = ['uint64_t', 'uint8_t', 'uint8_t', 'uint8_t', 'char', 'float', 'char', 'uint8_t', 'uint8_t', 'uint8_t']
         fielddisplays_by_name = {}
         fieldenums_by_name = {}
         fieldunits_by_name = {"time_usec": "us", "default_initiate_time": "s", "default_return_time": "s"}
-        format = '<QfBBB3sBBBB'
-        native_format = bytearray('<QfBBBcBBBB', 'ascii')
+        format = '<QfBBB3s6sBBB'
+        native_format = bytearray('<QfBBBccBBB', 'ascii')
         orders = [0, 2, 3, 4, 5, 1, 6, 7, 8, 9]
         lengths = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        array_lengths = [0, 0, 0, 0, 0, 3, 0, 0, 0, 0]
-        crc_extra = 53
-        unpacker = struct.Struct('<QfBBB3sBBBB')
+        array_lengths = [0, 0, 0, 0, 0, 3, 6, 0, 0, 0]
+        crc_extra = 47
+        unpacker = struct.Struct('<QfBBB3s6sBBB')
 
         def __init__(self, time_usec, target_system, message_mode, alert_id, attack_name, attack_score, default_action, default_initiate_time, default_return_time, modules_enabled):
                 MAVLink_message.__init__(self, MAVLink_mavids_message.id, MAVLink_mavids_message.name)
@@ -3935,7 +3935,7 @@ class MAVLink_mavids_message(MAVLink_message):
                 self.modules_enabled = modules_enabled
 
         def pack(self, mav, force_mavlink1=False):
-                return MAVLink_message.pack(self, mav, 53, struct.pack('<QfBBB3sBBBB', self.time_usec, self.attack_score, self.target_system, self.message_mode, self.alert_id, self.attack_name, self.default_action, self.default_initiate_time, self.default_return_time, self.modules_enabled), force_mavlink1=force_mavlink1)
+                return MAVLink_message.pack(self, mav, 47, struct.pack('<QfBBB3s6sBBB', self.time_usec, self.attack_score, self.target_system, self.message_mode, self.alert_id, self.attack_name, self.default_action, self.default_initiate_time, self.default_return_time, self.modules_enabled), force_mavlink1=force_mavlink1)
 
 class MAVLink_heartbeat_message(MAVLink_message):
         '''
@@ -10579,7 +10579,7 @@ class MAVLink(object):
                 alert_id                  : The alert ID. (type:uint8_t)
                 attack_name               : char[3] representing name of attack. (type:char)
                 attack_score              : Float representing the attack score. (type:float)
-                default_action            : Default mitigation action when attack is detected (type:uint8_t)
+                default_action            : Default mitigation action when attack is detected (type:char)
                 default_initiate_time        : Time until default mitigation action is initiated (seconds) [s] (type:uint8_t)
                 default_return_time        : Time until returning to previous flight mode (if 0, UAV will not continue mission after mitigation action is completed) [s] (type:uint8_t)
                 modules_enabled           : Bitmap of attack modules to enable. (type:uint8_t)
@@ -10598,7 +10598,7 @@ class MAVLink(object):
                 alert_id                  : The alert ID. (type:uint8_t)
                 attack_name               : char[3] representing name of attack. (type:char)
                 attack_score              : Float representing the attack score. (type:float)
-                default_action            : Default mitigation action when attack is detected (type:uint8_t)
+                default_action            : Default mitigation action when attack is detected (type:char)
                 default_initiate_time        : Time until default mitigation action is initiated (seconds) [s] (type:uint8_t)
                 default_return_time        : Time until returning to previous flight mode (if 0, UAV will not continue mission after mitigation action is completed) [s] (type:uint8_t)
                 modules_enabled           : Bitmap of attack modules to enable. (type:uint8_t)

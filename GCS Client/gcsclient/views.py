@@ -3,6 +3,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, authenticate
 from .models import Settings
 from .utils import train_OneClassSVM, train_LocalOutlierFactor, train_Autoencoder
+from .mav_util import *
+from background_task import background
 
 def login(request):
     if request.method == 'POST':
@@ -17,6 +19,8 @@ def login(request):
 
 @login_required()
 def dashboard(request):
+    listen_link(repeat=1, repeat_until=None)
+
     return render(request, 'gcsclient/dashboard.html')
 
 @login_required()

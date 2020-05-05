@@ -19,10 +19,10 @@ from .models import Settings
 
 sys.path.append(os.path.join(os.path.dirname(__file__)) + "\..\..\libraries")
 print(sys.path)
-import pymavlink_custom
+from pymavlink import mavutil
 
 os.environ['MAVLINK20'] = "1"
-pymavlink_custom.mavutil.set_dialect("MAVIDS")
+mavutil.set_dialect("MAVIDS")
 
 # optimization function modified from: https://github.com/spacesense-ai/spacesense/blob/master/spacesense/utils.py
 def optimize_OneClassSVM(X, n):
@@ -262,7 +262,7 @@ def read_file(file_name, use_label=False, start_label=None, end_label=None):
 
         if ".tlog" in file_name:
             filename = file_name
-            mlog = pymavlink.mavutil.mavlink_connection(filename)
+            mlog = mavutil.mavlink_connection(filename)
             ext = os.path.splitext(filename)[1]
             isbin = ext in ['.bin', '.BIN']
             islog = ext in ['.log', '.LOG', '.tlog', '.TLOG']

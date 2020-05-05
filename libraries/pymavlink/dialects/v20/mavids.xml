@@ -18,7 +18,7 @@
         <field type="char[3]" name="attack_name">char[3] representing name of attack.</field>
         <field type="float" name="attack_score">Float representing the attack score.</field>
 	<!-- Setting specific messages. GCS to Drone -->
-        <field type="uint8_t" name="default_action">Default mitigation action when attack is detected</field>
+        <field type="char[6]" name="default_action">Default mitigation action when attack is detected</field>
         <field type="uint8_t" name="default_initiate_time" units="s">Time until default mitigation action is initiated (seconds)</field>
 	<field type="uint8_t" name="default_return_time" units="s">Time until returning to previous flight mode (if 0, UAV will not continue mission after mitigation action is completed)</field>
 	<field type="uint8_t" name="modules_enabled">Bitmap of attack modules to enable.</field>

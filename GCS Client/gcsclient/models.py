@@ -27,4 +27,3 @@ class Settings(models.Model):
         max_length=6,
         choices=CONNECTION_METHODS,
         default='GCS')
-
