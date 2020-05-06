@@ -17,9 +17,9 @@ from tensorflow.keras.callbacks import EarlyStopping
 #from pymavlink import mavutil
 from .models import Settings
 
-sys.path.append(os.path.join(os.path.dirname(__file__)) + "\..\..\libraries")
+#sys.path.append(os.path.join(os.path.dirname(__file__)) + "\..\..\libraries")
 print(sys.path)
-from pymavlink import mavutil
+from .pymavlink import mavutil
 
 os.environ['MAVLINK20'] = "1"
 mavutil.set_dialect("MAVIDS")
