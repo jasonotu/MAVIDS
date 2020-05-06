@@ -1,11 +1,12 @@
 import sys, os, time
 from background_task import background
 from .models import Settings
+#from ....libraries import pymavlink
+#
+# sys.path.append(os.path.join(os.path.dirname(__file__)) + "\..\..\libraries")
+# print(sys.path)
 
-sys.path.append(os.path.join(os.path.dirname(__file__)) + "\..\..\libraries")
-print(sys.path)
-
-from pymavlink import mavutil
+from .pymavlink import mavutil
 
 os.environ['MAVLINK20'] = "1"
 mavutil.set_dialect("MAVIDS")
@@ -65,8 +66,8 @@ def listen_link():
 
     #try:
     if not established or heartbeat_timeout <= 0:
-        uav_link = mavutil.mavlink_connection('udpin:0.0.0.0:14551')
-        print("hello")
+        uav_link = mavutil.mavlink_connection('udpin:0.0.0.0:14550')
+        #print("hello")
         established = True
 
     print("listening...", established)
@@ -85,7 +86,7 @@ def listen_link():
                     print("missed a heartbeat!")
                     heartbeat_timeout -= 1
                 break
-            print(messages, "hello")
+            #print(messages)
             message_recv = True
             if not connection_status:
                 connection_status = True
