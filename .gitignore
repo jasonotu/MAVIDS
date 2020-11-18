@@ -1,2 +1,6 @@
 .idea/
-GCS Client/**/*.pyc
+venv/
+libraries/
+*.pyc
+__pycache__
+*.pyc

@@ -14,15 +14,142 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.callbacks import EarlyStopping
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 #from pymavlink import mavutil
 from .models import Settings
 
-#sys.path.append(os.path.join(os.path.dirname(__file__)) + "\..\..\libraries")
-print(sys.path)
-from .pymavlink import mavutil
+from pymavlink import mavutil
 
 os.environ['MAVLINK20'] = "1"
 mavutil.set_dialect("MAVIDS")
+
+def read_file(folderdir, malfolderdir=None, mode='gpsonly', malicious=False):
+    #_________________VARIABLES YOU CAN EDIT_______________________________
+    setting = Settings.objects.first()
+    attacks = {"GPS": setting.gps_enabled, "DOS": setting.dos_enabled}
+
+    csv_list_all = ['actuator_controls', 'actuator_output', 'airspeed',
+                'ekf2_innovations', 'estimator_status', 'multirotor_motor_limits',
+                'rate_ctrl_status', 'sensor_combined', 'telemetry_status', 'angular_velocity',
+                'vehicle_attitude_0', 'global_position_0', 'gps_position_0', 'local_position_0',
+                'magnetometer', 'vehicle_rates_setpoint']
+    csv_list_gps = ['vehicle_attitude_0', 'global_position_0', 'gps_position_0', 'local_position_0']
+    csv_list_gpsekf = ['actuator_controls', 'actuator_output', 'airspeed',
+                       'ekf2_innovations', 'estimator_status', 'angular_velocity',
+                       'vehicle_attitude_0', 'global_position_0', 'gps_position_0', 'local_position_0']
+    #_______________________VARIABLES______________________________________
+    #setting = Settings.objects.first()
+    final_df = pd.Dataframe()
+    return_list = list()
+    search_list = list()
+    #______________________END______________________________________________
+
+    # __________________PARSING OF TLOG_____________________________________
+
+    if mode == 'gpsonly':
+        csv_list = csv_list_gps
+    elif mode == 'gpsekf':
+        csv_list = csv_list_gpsekf
+    else:
+        csv_list = csv_list_all
+
+
+    existing_csv_list = os.listdir(folderdir)
+    search_list.append((existing_csv_list, folderdir))
+    if malicious:
+        mal_csv_list = os.listdir(malfolderdir)
+        search_list.append((mal_csv_list, malfolderdir))
+
+    for csv_class in search_list:
+
+        for csv in csv_list:
+            for exist_csv in csv_class[0]:
+                if csv in exist_csv:
+                    temp_df = pd.read_csv(csv_class[1] + exist_csv)
+                    # print(temp_df)
+                    if len(final_df.columns) == 0:
+                        final_df = temp_df
+                    else:
+                        final_df = final_df.merge(temp_df, how='outer', left_on='timestamp', right_on='timestamp')
+                    break
+
+        final_df = final_df.sort_values('timestamp')
+        final_df = final_df.set_index('timestamp')
+        final_df = final_df.interpolate(axis=0, method='linear', limit_direction='both')
+
+        for column in final_df.columns:
+            if "timestamp" in column:
+                if column == "timestamp":
+                    continue
+                print(column)
+                final_df = final_df.drop(columns=column)
+
+        # Code to label data points. Don't need in production. Used for debug and testing
+        if malicious == True and csv_class == search_list[1]:
+            target_column = []
+            target_lon, target_lat = 0, 0
+            for index, row, in final_df[['lat_x', 'lon_x']].iterrows():
+                if len(target_column) == 0:
+                    print(index, row)
+                    target_lat = row['lat_x']
+                    target_lon = row['lon_x']
+
+                if (row['lat_x'] > target_lat + 0.03 or row['lat_x'] < target_lat - 0.03) or (
+                        row['lon_x'] > target_lon + 0.03 or row['lon_x'] < target_lon - 0.03):
+                    # print(row, target_lat, target_lon)
+                    target_column.append("malicious")
+                else:
+                    target_column.append("benign")
+            final_df['label'] = target_column
+        # end of labelling
+        final_df = final_df.replace([np.inf, -np.inf], np.nan).dropna(how='any', axis=1)
+
+        return_list.append(final_df)
+
+    return return_list
+
+def preprocessor(loaded_dfs):
+    df_benign_flight = loaded_dfs[0]
+    dataframes_processed = dict()
+    df_benign_flight_train = df_benign_flight.drop(columns=['timestamp', 'label'], errors='ignore')
+    x = df_benign_flight_train.values
+    x = StandardScaler().fit_transform(x)  # normalizing the features
+    train_pca_gps = PCA(.85)
+    train_pc_data = train_pca_gps.fit_transform(x)
+    df_benign_flight_train = pd.DataFrame(data=train_pc_data)
+
+    print('Explained variation per principal component: {}'.format(train_pca_gps.explained_variance_ratio_))
+    print(sum(train_pca_gps.explained_variance_ratio_))
+
+    dataframes_processed['benign'] = df_benign_flight
+    dataframes_processed['benign_train'] = df_benign_flight_train
+
+    if len(loaded_dfs) > 1:
+        df_malicious_flight = loaded_dfs[1]
+
+        target_column = df_malicious_flight[['label']]
+        df_malicious_flight_pred = df_malicious_flight.drop(columns=['timestamp', 'label'])
+        x = df_malicious_flight_pred.values
+        x = StandardScaler().fit_transform(x)  # normalizing the features
+        test_malicious_nolabel = train_pca_gps.transform(x)
+        df_malicious_flight_pred = pd.DataFrame(data=test_malicious_nolabel)
+        df_malicious_flight = pd.DataFrame(data=test_malicious_nolabel)
+        df_malicious_flight['label'] = target_column
+
+        dataframes_processed['malicious'] = df_malicious_flight
+        dataframes_processed['malicious_pred'] = df_malicious_flight_pred
+
+        df_malicious_flight_test = df_malicious_flight_pred.loc[df_malicious_flight['label'] == 'malicious']
+        dataframes_processed['malicious_auto_test'] = df_malicious_flight_test
+
+    df_benign_flight_train, df_benign_flight_test = train_test_split(df_benign_flight, test_size=0.05, random_state=1)
+
+    dataframes_processed['benign_auto_test'] = df_benign_flight_test
+    dataframes_processed['benign_auto_train'] = df_benign_flight_train
+
+    return dataframes_processed
+
 
 # optimization function modified from: https://github.com/spacesense-ai/spacesense/blob/master/spacesense/utils.py
 def optimize_OneClassSVM(X, n):
@@ -46,15 +173,14 @@ def optimize_OneClassSVM(X, n):
     print("Found: nu = %f, gamma = %f" % (opt_nu, opt_gamma))
     return opt_nu, opt_gamma
 
-def train_OneClassSVM():
+def train_OneClassSVM(dataframes_processed):
     output = ''
     # load CSVs
-    df_benign_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\NORMAL_DOS_V_FINAL.csv')
-    df_malicious_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\DOS_DATASET_V_FINAL.csv')
 
-    df_benign_flight_train = df_benign_flight.drop(columns=['timestamp', 'label'])
-    df_malicious_flight_pred = df_malicious_flight.drop(columns=['timestamp', 'label'])
-    df_malicious_flight = df_malicious_flight.drop(columns=['timestamp'])
+    df_benign_flight_train = dataframes_processed['benign_auto_train']
+    df_malicious_flight = dataframes_processed['malicious']
+    df_malicious_flight_pred = dataframes_processed['malicious_pred']
+
 
     # print the first 5 rows of each dataframe
     output += "Original Values:\n"
@@ -65,9 +191,9 @@ def train_OneClassSVM():
     output += "Benign count: " + str(len(df_benign_flight_train)) + "\n"
     output += "Malicious count: " + str(len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])) + "\n"
 
-    nu_opt, gamma_opt = optimize_OneClassSVM(df_benign_flight_train, 10)
-
-    model = svm.OneClassSVM(nu=nu_opt, kernel="rbf", gamma=gamma_opt)
+    #nu_opt, gamma_opt = optimize_OneClassSVM(df_benign_flight_train, 10)
+    #model = svm.OneClassSVM(nu=nu_opt, kernel="rbf", gamma=gamma_opt)
+    model = svm.OneClassSVM(nu=0.0211, kernel="rbf", gamma=0.0003)
     model.fit(df_benign_flight_train)
 
     pickle.dump(model, open('finalized_model.sav', 'wb'))
@@ -85,28 +211,13 @@ def train_OneClassSVM():
 
     return output
 
-def train_LocalOutlierFactor():
+def train_LocalOutlierFactor(dataframes_processed):
     output = ''
     # load CSVs
-    df_benign_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\NORMAL_DOS_V_FINAL.csv')
-    df_malicious_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\DOS_DATASET_V_FINAL.csv')
+    df_benign_flight_train = dataframes_processed['benign_auto_train']
+    df_malicious_flight = dataframes_processed['malicious']
+    df_malicious_flight_pred = dataframes_processed['malicious_pred']
 
-    df_benign_flight_train = df_benign_flight.drop(columns=['timestamp', 'label'])
-    df_malicious_flight_pred = df_malicious_flight.drop(columns=['timestamp', 'label'])
-    df_malicious_flight = df_malicious_flight.drop(columns=['timestamp'])
-
-    df_benign_flight_train = df_benign_flight[
-        ['load', 'vibration_x', 'vibration_y', 'servo1_raw', 'servo3_raw', 'servo5_raw', 'servo6_raw', 'q3', 'xgyro',
-         'pitch', 'rollspeed', 'yacc']]
-    df_malicious_flight_pred = df_malicious_flight_pred[
-        ['load', 'vibration_x', 'vibration_y', 'servo1_raw', 'servo3_raw', 'servo5_raw', 'servo6_raw', 'q3', 'xgyro',
-         'pitch', 'rollspeed', 'yacc']]
-    df_malicious_flight = df_malicious_flight[
-        ['label', 'load', 'vibration_x', 'vibration_y', 'servo1_raw', 'servo3_raw', 'servo5_raw', 'servo6_raw', 'q3',
-         'xgyro', 'pitch', 'rollspeed', 'yacc']]
-    # df_malicious_flight_train = df_malicious_flight.drop(columns=['timestamp', 'label'])
-
-    # print the first 5 rows of each dataframe
     output += "Original Values:\n"
     output += "df_benign_flight_train: \n%s\n" % df_benign_flight_train[0:5].to_string()
     output += "df_malicious_flight_pred: \n%s\n" % df_malicious_flight_pred[0:5].to_string()
@@ -120,10 +231,10 @@ def train_LocalOutlierFactor():
     output += "Malicious count: " + str(len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])) + "\n"
 
     # neighbours at 61 gives lower false positive rate than n=30
-    model = LocalOutlierFactor(n_neighbors=61, novelty=True, contamination=0.1)
+    model = LocalOutlierFactor(n_neighbors=3100, novelty=True, contamination=0.1, n_jobs=-1)
     model.fit(df_benign_flight_train)
 
-    pickle.dump(model, open('finalized_model.sav', 'wb'))
+    pickle.dump(model, open('lof.sav', 'wb'))
 
     y_pred = model.predict(df_malicious_flight_pred)
     y_true = df_malicious_flight[['label']]
@@ -136,39 +247,14 @@ def train_LocalOutlierFactor():
 
     return output
 
-def train_Autoencoder():
+def train_Autoencoder(dataframes_processed):
     output = ''
-    # load CSVs
-    df_benign_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\NORMAL_DOS_V_FINAL.csv')
-    df_malicious_flight = pd.read_csv(r'C:\Users\Jason\PycharmProjects\mavids\mavids\gcsclient\DOS_DATASET_V_FINAL.csv')
+    df_benign_flight_train = dataframes_processed['benign_auto_train']
+    df_benign_flight_test = dataframes_processed['benign_auto_test']
+    df_malicious_flight_test = dataframes_processed['malicious_auto_test']
+    df_malicious_flight = dataframes_processed['malicious']
+    df_malicious_flight_pred = dataframes_processed['malicious_pred']
 
-    df_benign_flight = df_benign_flight[
-        ['timestamp', 'label', 'load', 'vibration_x', 'vibration_y', 'servo1_raw', 'servo3_raw', 'servo5_raw',
-         'servo6_raw', 'q3', 'xgyro', 'pitch', 'rollspeed', 'yacc']]
-    df_malicious_flight = df_malicious_flight[
-        ['timestamp', 'label', 'load', 'vibration_x', 'vibration_y', 'servo1_raw', 'servo3_raw', 'servo5_raw',
-         'servo6_raw', 'q3', 'xgyro', 'pitch', 'rollspeed', 'yacc']]
-    # split benign
-    df_benign_flight_train, df_benign_flight_test = train_test_split(df_benign_flight, test_size=0.05, random_state=1)  # split x% of benign to test RMSE against
-
-    # keep only features and label if applicable
-    df_benign_flight_train = df_benign_flight_train.drop(columns=['timestamp', 'label'])
-    df_benign_flight_test = df_benign_flight_test.drop(columns=['timestamp', 'label'])
-    df_malicious_flight = df_malicious_flight.drop(columns=['timestamp'])
-    df_malicious_flight_pred = df_malicious_flight.drop(columns=['label'])
-    df_malicious_flight_test = df_malicious_flight_pred.loc[df_malicious_flight['label'] == 'malicious']
-
-    # print the first 5 rows of each dataframe
-    output += "Original Values:\n"
-    output += "df_benign_flight_train:\n%s\n" % df_benign_flight_train[0:5].to_string()
-    output += "df_benign_flight_test:\n%s\n" % df_benign_flight_test[0:5].to_string()
-    output += "df_malicious_flight: \n%s\n" % df_malicious_flight[0:5].to_string()
-    output += "df_malicious_flight_pred: \n%s\n" % df_malicious_flight_pred[0:5].to_string()
-
-    output += "Benign count: " + str(len(df_benign_flight_train)) + "\n"
-    output += "Malicious count: " + str(len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])) + "\n"
-
-    # This is the numeric feature vector, as it goes to the neural net
     x_benign_train = df_benign_flight_train.values
     x_benign_sample = df_benign_flight_test.values
     x_malicious_sample = df_malicious_flight_test.values
@@ -182,26 +268,30 @@ def train_Autoencoder():
     monitor = EarlyStopping(monitor="loss", min_delta=1e-3, restore_best_weights=True)
     model.fit(x_benign_train, x_benign_train, verbose=1, epochs=100, callbacks=[monitor])
 
-    #pickle.dump(model, open('finalized_model.sav', 'wb'))
-
     pred = model.predict(x_benign_train)
     score1 = metrics.mean_squared_error(pred, x_benign_train)
     pred = model.predict(x_benign_sample)
     score2 = metrics.mean_squared_error(pred, x_benign_sample)
     pred = model.predict(x_malicious_sample)
     score3 = metrics.mean_squared_error(pred, x_malicious_sample)
+
     output += f"Insample Benign Score (MSE): " + str(score1) + "\n"
     output += f"Out of Sample Benign Score (MSE): " + str(score2) + "\n"
     output += f"Malicious Score (MSE): " + str(score3) + "\n"
 
-    threshold = 0.991
+    model.save('autoencoder.h5')
+
+    threshold = 0.96
     y_pred = pd.DataFrame()
+
     predicted = model.predict(df_malicious_flight_pred)
     mse = np.mean(np.power(df_malicious_flight_pred - predicted, 2), axis=1)
     y_pred['MSE'] = mse
     mse_threshold = np.quantile(y_pred['MSE'], threshold)
-    output += f'Selected threshold: {threshold * 100}%' + "\n"
+
+    output += f'Selected threshold: {threshold*100}%' + "\n"
     output += f'Calculated MSE threshold: {mse_threshold}' + "\n"
+
     y_pred['label'] = 1
     y_pred.loc[y_pred['MSE'] > mse_threshold, 'label'] = -1
 
@@ -210,216 +300,20 @@ def train_Autoencoder():
     y_true = y_true.replace('malicious', -1)
 
     output += f"Malicious count: {len(y_pred.loc[y_pred['label'] == -1])}" + "\n"
-    output += str(classification_report(y_true, y_pred['label'], digits=4)) + "\n"
-    output += str(confusion_matrix(y_true, y_pred['label'])) + "\n"
+    output += classification_report(y_true, y_pred['label'], digits=5)  + "\n"
+    conf_matrix = confusion_matrix(y_true, y_pred['label']) + "\n"
+    output += conf_matrix + "\n"
+
+    # LABELS = ["Malicious", "Benign"]
+    # plt.figure(figsize=(12, 12))
+    # plt.tick_params(axis="x", labelsize=30)
+    # plt.tick_params(axis="y", labelsize=30)
+    # sns.heatmap(conf_matrix, xticklabels=LABELS, yticklabels=LABELS, annot=True, annot_kws={"size": 50}, fmt="d",
+    #             cmap="Blues", linewidths=1, linecolor='black');
+    # plt.ylabel('True class', fontsize=28)
+    # plt.xlabel('Predicted class', fontsize=28)
+    # plt.show()
 
     return output
 
-def read_file(file_name, use_label=False, start_label=None, end_label=None):
-    #_________________VARIABLES YOU CAN EDIT_______________________________
-    setting = Settings.objects.first()
-    msg_dict = {
-        "DOS": ["SYS_STATUS", "VIBRATION", "HIGHRES_IMU", "ATTITUDE_QUATERNION",
-                "SERVO_OUTPUT_RAW", "ATTITUDE"],
-        "GPS": ["HIGHRES_IMU", "ATTITUDE_QUATERNION", "GPS_RAW_INT", "VFR_HUD"],
-        "3": ['VIBRATION', 'ATTITUDE', 'ATTITUDE_QUATERNION', 'HIGHRES_IMU', 'VFR_HUD', 'ATTITUDE_TARGET',
-              'ESTIMATOR_STATUS', 'LOCAL_POSITION_NED', 'SERVO_OUTPUT_RAW', 'GLOBAL_POSITION_INT']}
-    field_dict = {
-        "DOS": ['load', 'vibration_x', 'servo3_raw', 'servo1_raw', "vibration_y", 'q3', 'xgyro', 'pitch',
-                'rollspeed'],
-        "GPS": ["xgyro", "ygyro", "zgyro", "ymag", "xmag", "zmag", "q1", "q2", "q3", "q4", "cog", "heading"],
-        "3": ['vibration_x', 'vibration_y', 'vibration_z', 'q1', 'q2', 'pitchspeed', 'q4', 'yawspeed', 'rollspeed',
-              'q3', 'roll', 'pitch', 'yaw', 'zacc', 'pressure_alt', 'xgyro', 'zmag', 'ymag', 'abs_pressure', 'xacc',
-              'ygyro', 'zgyro', 'yacc', 'xmag', 'climb', 'throttle', 'groundspeed', 'alt', 'airspeed', 'heading',
-              'body_pitch_rate', 'body_yaw_rate', 'body_roll_rate', 'pos_vert_accuracy', 'mag_ratio', 'hagl_ratio',
-              'pos_horiz_ratio', 'pos_vert_ratio', 'vel_ratio', 'flags', 'tas_ratio', 'pos_horiz_accuracy',
-              'servo6_raw', 'servo3_raw', 'servo2_raw', 'servo1_raw', 'servo5_raw', 'servo8_raw', 'servo4_raw',
-              'servo7_raw', 'z', 'vy', 'vz', 'x', 'vx', 'y', 'hdg', 'lat', 'lon']}
-    location_list = {
-        "SYS_STATUS": ["load"],
-        "VIBRATION": ["vibration_x", "vibration_y"],
-        "HIGHRES_IMU": ["xgyro"],
-        "ATTITUDE_QUATERNION": ["q3"],
-        "SERVO_OUTPUT_RAW": ["servo3_raw", "servo1_raw"],
-        "ATTITUDE": ["rollspeed", "pitch"]
-    }
-    window_time = {"DOS": 1.05, "GPS": 0.25, "3": 0.25}
-    attacks = {"GPS": setting.gps_enabled, "DOS": setting.dos_enabled}
-    #_______________________VARIABLES______________________________________
-    #setting = Settings.objects.first()
-    dataframe_dict = dict()
-    dataframes = dict()
-    begin = False
-    final_dataset = {}
-    mean_dataframe_rows = {}
-    storage_list = {}
-    #______________________END______________________________________________
 
-    # __________________PARSING OF TLOG_____________________________________
-    try:
-        print(file_name)
-        starttime = time.time()
-
-        if ".tlog" in file_name:
-            filename = file_name
-            mlog = mavutil.mavlink_connection(filename)
-            ext = os.path.splitext(filename)[1]
-            isbin = ext in ['.bin', '.BIN']
-            islog = ext in ['.log', '.LOG', '.tlog', '.TLOG']
-
-            while True:
-
-                m = mlog.recv_match()
-
-                if m is None:
-                    # FIXME: Make sure to output the last CSV message before dropping out of this loop
-                    break
-
-                timestamp = getattr(m, '_timestamp', 0.0)
-
-                if not begin:
-                    start_time = float(timestamp)
-                    begin = True
-
-                end_time = float(timestamp)
-
-                s = "%s.%02u: %s" % (
-                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp)), int(timestamp * 100.0) % 100, m)
-
-                first_split, temp_dict = lineparser(s)
-                message_name = first_split[2]
-                temp_dict["timestamp"] = timestamp
-
-                if message_name in dataframe_dict:
-                    dataframe_dict[message_name].append(temp_dict)
-                else:
-                    #print("hello")
-                    dataframe_dict[message_name] = []
-                    dataframe_dict[message_name].append(temp_dict)
-
-            for x in dataframe_dict.keys():
-                dataframes[x] = pd.DataFrame(dataframe_dict[x])
-                print(dataframes[x])
-        else:
-            readfile = open(file_name)
-
-            for x in readfile:
-                lineparser(x)
-    except IOError as e:
-        print("error!", e)
-        return False, None
-    except Exception:
-        return False, None
-
-    #ACTUAL PARSING OF DATAFRAME
-
-    try:
-        for key, value in attacks.items():
-            if value:
-                final_dataset[key] = pd.DataFrame()
-                mean_dataframe_rows[key] = []
-
-                while True:
-                    for x in field_dict[key]:
-                        storage_list[x] = []
-
-                    for x in msg_dict[key]:
-                        temp_df = dataframes[x][(start_time <= dataframes[x]['timestamp']) & (
-                                    dataframes[x]['timestamp'] < start_time + window_time[key])]
-
-                        for y in location_list[x]:
-                            storage_list[y] = temp_df[y].values.tolist()
-
-                    data_point_dict = {}
-
-                    for key_two, value_two in storage_list.items():
-                        temp_list = list(map(float, value_two))
-                        if len(temp_list) != 0:
-                            data_point_dict[key_two] = sum(temp_list) / len(temp_list)
-                            data_point_dict["timestamp"] = start_time
-
-                    if len(data_point_dict) == len(field_dict[key]) + 1:
-                        #start time
-                        strp_a = datetime.datetime.strptime(start_label, fmt).time()
-
-                        # end time
-                        strp_b = datetime.datetime.strptime(end_label, fmt).time()
-
-                        if use_label and start_time >= strp_a and start_time <= strp_b:
-                            data_point_dict['label'] = '1'
-                        elif use_label:
-                            data_point_dict['label'] = '0'
-
-                        mean_dataframe_rows[key].append(data_point_dict)
-
-                    start_time += window_time[key]
-
-                    if start_time > end_time:
-                        break
-
-                final_dataset[key] = pd.DataFrame(mean_dataframe_rows[key])
-
-        endtime = time.time()
-        print("done!! It took {0}".format(endtime - starttime))
-
-        return True, final_dataset
-    except Exception:
-        return False, None
-
-def lineparser(linestr):
-    global folder_out, pastload, pasttime
-
-    first = linestr[:linestr.index("{") - 1]
-    second = linestr[linestr.index("{"):len(linestr)]
-    currentscope = False
-    currentindex = 0
-    scopeindexfirst, scopeindexlast = 0, 0
-    temp_dict = dict()
-
-    if "BAD_DATA" not in first:
-        if "[" in second:
-            scopeindexfirst = second.index("[")
-            scopeindexlast = second.index("]")
-            currentscope = True
-
-        while True:
-            if "," in second:
-                spliceindex = second.index(",")
-            else:
-                keypair_dict = second.strip("{}, ").split(" : ")
-
-                if len(keypair_dict) <= 1:
-                    break
-
-                temp_dict[keypair_dict[0]] = keypair_dict[1]
-                break
-
-            keypair = ""
-            if spliceindex == -1:
-                break
-            elif spliceindex < scopeindexfirst and currentscope:
-                keypair = second[1:spliceindex]
-                second = second[spliceindex + 1:len(second)]
-                scopeindexfirst -= spliceindex + 1
-                scopeindexlast -= spliceindex + 1
-            elif spliceindex > scopeindexfirst and currentscope:
-                keypair = second[1:scopeindexlast + 1]
-                keypair = keypair.replace(",", "|")
-                second = second[scopeindexlast + 2: len(second)]
-
-                if "[" in second:
-                    scopeindexfirst = second.index("[")
-                    scopeindexlast = second.index("]")
-                else:
-                    currentscope = False
-            else:
-                keypair = second[1:spliceindex]
-                second = second[spliceindex + 1:len(second)]
-
-            keypair_dict = keypair.split(" : ")
-            temp_dict[keypair_dict[0]] = keypair_dict[1]
-    else:
-        temp_dict = {"data": second}
-
-    first_split = first.split(" ")
-    return first_split, temp_dict
