@@ -4,3 +4,4 @@ libraries/
 *.pyc
 __pycache__
 *.pyc
+*.sqlite3

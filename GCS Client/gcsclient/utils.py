@@ -16,15 +16,18 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+import tkinter as tk
+from tkinter import filedialog
 #from pymavlink import mavutil
 from .models import Settings
 
 from pymavlink import mavutil
+from .pyulog_mod import ulog2csv
 
 os.environ['MAVLINK20'] = "1"
 mavutil.set_dialect("MAVIDS")
 
-def read_file(folderdir, malfolderdir=None, mode='gpsonly', malicious=False):
+def read_file(mode='gpsonly', malicious=False):
     #_________________VARIABLES YOU CAN EDIT_______________________________
     setting = Settings.objects.first()
     attacks = {"GPS": setting.gps_enabled, "DOS": setting.dos_enabled}
@@ -41,8 +44,6 @@ def read_file(folderdir, malfolderdir=None, mode='gpsonly', malicious=False):
     #_______________________VARIABLES______________________________________
     #setting = Settings.objects.first()
     final_df = pd.Dataframe()
-    return_list = list()
-    search_list = list()
     #______________________END______________________________________________
 
     # __________________PARSING OF TLOG_____________________________________
@@ -55,62 +56,67 @@ def read_file(folderdir, malfolderdir=None, mode='gpsonly', malicious=False):
         csv_list = csv_list_all
 
 
-    existing_csv_list = os.listdir(folderdir)
-    search_list.append((existing_csv_list, folderdir))
-    if malicious:
-        mal_csv_list = os.listdir(malfolderdir)
-        search_list.append((mal_csv_list, malfolderdir))
+    # existing_csv_list = os.listdir(folderdir)
+    # search_list.append((existing_csv_list, folderdir))
+    # if malicious:
+    #     mal_csv_list = os.listdir(malfolderdir)
+    #     search_list.append((mal_csv_list, malfolderdir))
 
-    for csv_class in search_list:
+    # for csv_class in search_list:
 
-        for csv in csv_list:
-            for exist_csv in csv_class[0]:
-                if csv in exist_csv:
-                    temp_df = pd.read_csv(csv_class[1] + exist_csv)
-                    # print(temp_df)
-                    if len(final_df.columns) == 0:
-                        final_df = temp_df
-                    else:
-                        final_df = final_df.merge(temp_df, how='outer', left_on='timestamp', right_on='timestamp')
-                    break
+    #     for csv in csv_list:
+    #         for exist_csv in csv_class[0]:
+    #             if csv in exist_csv:
 
-        final_df = final_df.sort_values('timestamp')
-        final_df = final_df.set_index('timestamp')
-        final_df = final_df.interpolate(axis=0, method='linear', limit_direction='both')
+    root = tk.Tk()
+    root.withdraw()
 
-        for column in final_df.columns:
-            if "timestamp" in column:
-                if column == "timestamp":
-                    continue
-                print(column)
-                final_df = final_df.drop(columns=column)
+    file_path = filedialog.askopenfilename()
 
-        # Code to label data points. Don't need in production. Used for debug and testing
-        if malicious == True and csv_class == search_list[1]:
-            target_column = []
-            target_lon, target_lat = 0, 0
-            for index, row, in final_df[['lat_x', 'lon_x']].iterrows():
-                if len(target_column) == 0:
-                    print(index, row)
-                    target_lat = row['lat_x']
-                    target_lon = row['lon_x']
+    for tuple_pair in ulog2csv(file_path, csv_list):
+        temp_df = pd.Dataframe(tuple_pair[0], columns=tuple_pair[1])
+        # print(temp_df)
+        if len(final_df.columns) == 0:
+            final_df = temp_df
+        else:
+            final_df = final_df.merge(temp_df, how='outer', left_on='timestamp', right_on='timestamp')
+        break
 
-                if (row['lat_x'] > target_lat + 0.03 or row['lat_x'] < target_lat - 0.03) or (
-                        row['lon_x'] > target_lon + 0.03 or row['lon_x'] < target_lon - 0.03):
-                    # print(row, target_lat, target_lon)
-                    target_column.append("malicious")
-                else:
-                    target_column.append("benign")
-            final_df['label'] = target_column
-        # end of labelling
-        final_df = final_df.replace([np.inf, -np.inf], np.nan).dropna(how='any', axis=1)
+    final_df = final_df.sort_values('timestamp')
+    final_df = final_df.set_index('timestamp')
+    final_df = final_df.interpolate(axis=0, method='linear', limit_direction='both')
 
-        return_list.append(final_df)
+    for column in final_df.columns:
+        if "timestamp" in column:
+            if column == "timestamp":
+                continue
+            print(column)
+            final_df = final_df.drop(columns=column)
 
-    return return_list
+    # Code to label data points. Don't need in production. Used for debug and testing
+    # if malicious == True and csv_class == search_list[1]:
+    #     target_column = []
+    #     target_lon, target_lat = 0, 0
+    #     for index, row, in final_df[['lat_x', 'lon_x']].iterrows():
+    #         if len(target_column) == 0:
+    #             print(index, row)
+    #             target_lat = row['lat_x']
+    #             target_lon = row['lon_x']
+
+    #         if (row['lat_x'] > target_lat + 0.03 or row['lat_x'] < target_lat - 0.03) or (
+    #                 row['lon_x'] > target_lon + 0.03 or row['lon_x'] < target_lon - 0.03):
+    #             # print(row, target_lat, target_lon)
+    #             target_column.append("malicious")
+    #         else:
+    #             target_column.append("benign")
+    #     final_df['label'] = target_column
+    # end of labelling
+    final_df = final_df.replace([np.inf, -np.inf], np.nan).dropna(how='any', axis=1)
+
+    return final_df
 
 def preprocessor(loaded_dfs):
-    df_benign_flight = loaded_dfs[0]
+    df_benign_flight = loaded_df
     dataframes_processed = dict()
     df_benign_flight_train = df_benign_flight.drop(columns=['timestamp', 'label'], errors='ignore')
     x = df_benign_flight_train.values
@@ -125,23 +131,23 @@ def preprocessor(loaded_dfs):
     dataframes_processed['benign'] = df_benign_flight
     dataframes_processed['benign_train'] = df_benign_flight_train
 
-    if len(loaded_dfs) > 1:
-        df_malicious_flight = loaded_dfs[1]
+    # if len(loaded_dfs) > 1:
+    #     df_malicious_flight = loaded_dfs[1]
 
-        target_column = df_malicious_flight[['label']]
-        df_malicious_flight_pred = df_malicious_flight.drop(columns=['timestamp', 'label'])
-        x = df_malicious_flight_pred.values
-        x = StandardScaler().fit_transform(x)  # normalizing the features
-        test_malicious_nolabel = train_pca_gps.transform(x)
-        df_malicious_flight_pred = pd.DataFrame(data=test_malicious_nolabel)
-        df_malicious_flight = pd.DataFrame(data=test_malicious_nolabel)
-        df_malicious_flight['label'] = target_column
+    #     target_column = df_malicious_flight[['label']]
+    #     df_malicious_flight_pred = df_malicious_flight.drop(columns=['timestamp', 'label'])
+    #     x = df_malicious_flight_pred.values
+    #     x = StandardScaler().fit_transform(x)  # normalizing the features
+    #     test_malicious_nolabel = train_pca_gps.transform(x)
+    #     df_malicious_flight_pred = pd.DataFrame(data=test_malicious_nolabel)
+    #     df_malicious_flight = pd.DataFrame(data=test_malicious_nolabel)
+    #     df_malicious_flight['label'] = target_column
 
-        dataframes_processed['malicious'] = df_malicious_flight
-        dataframes_processed['malicious_pred'] = df_malicious_flight_pred
+    #     dataframes_processed['malicious'] = df_malicious_flight
+    #     dataframes_processed['malicious_pred'] = df_malicious_flight_pred
 
-        df_malicious_flight_test = df_malicious_flight_pred.loc[df_malicious_flight['label'] == 'malicious']
-        dataframes_processed['malicious_auto_test'] = df_malicious_flight_test
+    #     df_malicious_flight_test = df_malicious_flight_pred.loc[df_malicious_flight['label'] == 'malicious']
+    #     dataframes_processed['malicious_auto_test'] = df_malicious_flight_test
 
     df_benign_flight_train, df_benign_flight_test = train_test_split(df_benign_flight, test_size=0.05, random_state=1)
 
@@ -178,18 +184,18 @@ def train_OneClassSVM(dataframes_processed):
     # load CSVs
 
     df_benign_flight_train = dataframes_processed['benign_auto_train']
-    df_malicious_flight = dataframes_processed['malicious']
-    df_malicious_flight_pred = dataframes_processed['malicious_pred']
+    # df_malicious_flight = dataframes_processed['malicious']
+    # df_malicious_flight_pred = dataframes_processed['malicious_pred']
 
 
     # print the first 5 rows of each dataframe
     output += "Original Values:\n"
     output += "df_benign_flight_train: \n%s\n" % df_benign_flight_train[0:5].to_string()
-    output += "df_malicious_flight_pred: \n%s\n" % df_malicious_flight_pred[0:5].to_string()
-    output += "df_malicious_flight: \n%s\n" % df_malicious_flight[0:5].to_string()
+    # output += "df_malicious_flight_pred: \n%s\n" % df_malicious_flight_pred[0:5].to_string()
+    # output += "df_malicious_flight: \n%s\n" % df_malicious_flight[0:5].to_string()
 
     output += "Benign count: " + str(len(df_benign_flight_train)) + "\n"
-    output += "Malicious count: " + str(len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])) + "\n"
+    #output += "Malicious count: " + str(len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])) + "\n"
 
     #nu_opt, gamma_opt = optimize_OneClassSVM(df_benign_flight_train, 10)
     #model = svm.OneClassSVM(nu=nu_opt, kernel="rbf", gamma=gamma_opt)
@@ -198,37 +204,37 @@ def train_OneClassSVM(dataframes_processed):
 
     pickle.dump(model, open('finalized_model.sav', 'wb'))
 
-    y_pred = model.predict(df_malicious_flight_pred)
-    y_true = df_malicious_flight[['label']]
+    # y_pred = model.predict(df_malicious_flight_pred)
+    # y_true = df_malicious_flight[['label']]
 
-    y_true = y_true.replace({'benign': 1})
-    y_true = y_true.replace('malicious', -1)
+    # y_true = y_true.replace({'benign': 1})
+    # y_true = y_true.replace('malicious', -1)
 
-    #output += str(model.score_samples(df_malicious_flight_pred)) # get raw scores
+    # #output += str(model.score_samples(df_malicious_flight_pred)) # get raw scores
 
-    output += str(metrics.classification_report(y_true, y_pred, digits=4))
-    output += str(metrics.confusion_matrix(y_true, y_pred))
+    # output += str(metrics.classification_report(y_true, y_pred, digits=4))
+    # output += str(metrics.confusion_matrix(y_true, y_pred))
 
-    return output
+    return None
 
 def train_LocalOutlierFactor(dataframes_processed):
     output = ''
     # load CSVs
     df_benign_flight_train = dataframes_processed['benign_auto_train']
-    df_malicious_flight = dataframes_processed['malicious']
-    df_malicious_flight_pred = dataframes_processed['malicious_pred']
+    # df_malicious_flight = dataframes_processed['malicious']
+    # df_malicious_flight_pred = dataframes_processed['malicious_pred']
 
-    output += "Original Values:\n"
-    output += "df_benign_flight_train: \n%s\n" % df_benign_flight_train[0:5].to_string()
-    output += "df_malicious_flight_pred: \n%s\n" % df_malicious_flight_pred[0:5].to_string()
-    output += "df_malicious_flight: \n%s\n" % df_malicious_flight[0:5].to_string()
+    # output += "Original Values:\n"
+    # output += "df_benign_flight_train: \n%s\n" % df_benign_flight_train[0:5].to_string()
+    # output += "df_malicious_flight_pred: \n%s\n" % df_malicious_flight_pred[0:5].to_string()
+    # output += "df_malicious_flight: \n%s\n" % df_malicious_flight[0:5].to_string()
 
     """*   Run classifier and print predictions
     *   We are using the entire malicious flight for training. We don't *have* to, but we do to properly score the performance. Otherwise the predictions and truths aren't lined up/accurate
     """
 
     output += "Benign count: " + str(len(df_benign_flight_train)) + "\n"
-    output += "Malicious count: " + str(len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])) + "\n"
+    #output += "Malicious count: " + str(len(df_malicious_flight.loc[df_malicious_flight['label'] == 'malicious'])) + "\n"
 
     # neighbours at 61 gives lower false positive rate than n=30
     model = LocalOutlierFactor(n_neighbors=3100, novelty=True, contamination=0.1, n_jobs=-1)
@@ -236,28 +242,28 @@ def train_LocalOutlierFactor(dataframes_processed):
 
     pickle.dump(model, open('lof.sav', 'wb'))
 
-    y_pred = model.predict(df_malicious_flight_pred)
-    y_true = df_malicious_flight[['label']]
+    # y_pred = model.predict(df_malicious_flight_pred)
+    # y_true = df_malicious_flight[['label']]
 
-    y_true = y_true.replace({'benign': 1})
-    y_true = y_true.replace('malicious', -1)
+    # y_true = y_true.replace({'benign': 1})
+    # y_true = y_true.replace('malicious', -1)
 
-    output += str(metrics.classification_report(y_true, y_pred, digits=5))
-    output += str(metrics.confusion_matrix(y_true, y_pred))
+    # output += str(metrics.classification_report(y_true, y_pred, digits=5))
+    # output += str(metrics.confusion_matrix(y_true, y_pred))
 
-    return output
+    return None
 
 def train_Autoencoder(dataframes_processed):
     output = ''
     df_benign_flight_train = dataframes_processed['benign_auto_train']
     df_benign_flight_test = dataframes_processed['benign_auto_test']
-    df_malicious_flight_test = dataframes_processed['malicious_auto_test']
-    df_malicious_flight = dataframes_processed['malicious']
-    df_malicious_flight_pred = dataframes_processed['malicious_pred']
+    # df_malicious_flight_test = dataframes_processed['malicious_auto_test']
+    # df_malicious_flight = dataframes_processed['malicious']
+    # df_malicious_flight_pred = dataframes_processed['malicious_pred']
 
     x_benign_train = df_benign_flight_train.values
     x_benign_sample = df_benign_flight_test.values
-    x_malicious_sample = df_malicious_flight_test.values
+    #x_malicious_sample = df_malicious_flight_test.values
 
     model = Sequential()
     model.add(Dense(25, input_dim=x_benign_train.shape[1], activation='relu'))
@@ -272,37 +278,37 @@ def train_Autoencoder(dataframes_processed):
     score1 = metrics.mean_squared_error(pred, x_benign_train)
     pred = model.predict(x_benign_sample)
     score2 = metrics.mean_squared_error(pred, x_benign_sample)
-    pred = model.predict(x_malicious_sample)
-    score3 = metrics.mean_squared_error(pred, x_malicious_sample)
+    # pred = model.predict(x_malicious_sample)
+    # score3 = metrics.mean_squared_error(pred, x_malicious_sample)
 
     output += f"Insample Benign Score (MSE): " + str(score1) + "\n"
     output += f"Out of Sample Benign Score (MSE): " + str(score2) + "\n"
-    output += f"Malicious Score (MSE): " + str(score3) + "\n"
+    # output += f"Malicious Score (MSE): " + str(score3) + "\n"
 
     model.save('autoencoder.h5')
 
     threshold = 0.96
     y_pred = pd.DataFrame()
 
-    predicted = model.predict(df_malicious_flight_pred)
-    mse = np.mean(np.power(df_malicious_flight_pred - predicted, 2), axis=1)
-    y_pred['MSE'] = mse
-    mse_threshold = np.quantile(y_pred['MSE'], threshold)
+    # predicted = model.predict(df_malicious_flight_pred)
+    # mse = np.mean(np.power(df_malicious_flight_pred - predicted, 2), axis=1)
+    # y_pred['MSE'] = mse
+    # mse_threshold = np.quantile(y_pred['MSE'], threshold)
 
-    output += f'Selected threshold: {threshold*100}%' + "\n"
-    output += f'Calculated MSE threshold: {mse_threshold}' + "\n"
+    # output += f'Selected threshold: {threshold*100}%' + "\n"
+    # output += f'Calculated MSE threshold: {mse_threshold}' + "\n"
 
-    y_pred['label'] = 1
-    y_pred.loc[y_pred['MSE'] > mse_threshold, 'label'] = -1
+    # y_pred['label'] = 1
+    # y_pred.loc[y_pred['MSE'] > mse_threshold, 'label'] = -1
 
-    y_true = df_malicious_flight[['label']]
-    y_true = y_true.replace({'benign': 1})
-    y_true = y_true.replace('malicious', -1)
+    # y_true = df_malicious_flight[['label']]
+    # y_true = y_true.replace({'benign': 1})
+    # y_true = y_true.replace('malicious', -1)
 
-    output += f"Malicious count: {len(y_pred.loc[y_pred['label'] == -1])}" + "\n"
-    output += classification_report(y_true, y_pred['label'], digits=5)  + "\n"
-    conf_matrix = confusion_matrix(y_true, y_pred['label']) + "\n"
-    output += conf_matrix + "\n"
+    # output += f"Malicious count: {len(y_pred.loc[y_pred['label'] == -1])}" + "\n"
+    # output += classification_report(y_true, y_pred['label'], digits=5)  + "\n"
+    # conf_matrix = confusion_matrix(y_true, y_pred['label']) + "\n"
+    # output += conf_matrix + "\n"
 
     # LABELS = ["Malicious", "Benign"]
     # plt.figure(figsize=(12, 12))
@@ -314,6 +320,6 @@ def train_Autoencoder(dataframes_processed):
     # plt.xlabel('Predicted class', fontsize=28)
     # plt.show()
 
-    return output
+    return None
 
 

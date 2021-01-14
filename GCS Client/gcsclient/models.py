@@ -27,3 +27,6 @@ class Settings(models.Model):
         max_length=6,
         choices=CONNECTION_METHODS,
         default='GCS')
+
+class Connection(models.Model):
+    established = models.BooleanField(default=False)

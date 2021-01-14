@@ -1,20 +1,15 @@
 import sys, os, time
-from background_task import background
-from .models import Settings
 #from ....libraries import pymavlink
 #
 # sys.path.append(os.path.join(os.path.dirname(__file__)) + "\..\..\libraries")
 # print(sys.path)
 from pymavlink import mavutil
+import requests
 #from pymavlink import mavutil
 
 os.environ['MAVLINK20'] = "1"
 mavutil.set_dialect("common")
-uav_link = None
-heartbeat_timeout = 3
-connection_status = False
-established = False
-counter = 0
+
 
 """
 MAVIDS:
@@ -55,70 +50,77 @@ modules_enabled: bitmap of attack modules enabled. [GPS, DOS, .....]
 runs as a background task on startup. have to issue the python manage.py process_tasks command for it to work
 If three heartbeats are missed, the "connection_status" global var is set to false.
 """
-@background(schedule=0)
-def listen_link():
-    global uav_link, heartbeat_timeout, connection_status, established, counter
-    heartbeat_received = False
-    alert_received = False
-    counter += 1
-    print(counter)
-    message_recv = False
-
-    #try:
-    if not established or heartbeat_timeout <= 0:
-        uav_link = mavutil.mavlink_connection('/dev/ttyTHS1', baud=57600)
-        #print("hello")
-        established = True
-
-    print("listening...", established)
-    if established:
-        send_message()
-
-        while True:
-
-            # type = ["HEARTBEAT", "MAVIDS"],
-            messages = uav_link.recv_match(blocking=False, type=['HEARTBEAT', 'MAVIDS'])
-            if not messages:
-                if heartbeat_timeout <= 0 and connection_status:
-                    print("Connection lost!")
-                    connection_status = False
-                elif not message_recv:
-                    print("missed a heartbeat!")
-                    heartbeat_timeout -= 1
-                break
-            #print(messages)
-            message_recv = True
-            if not connection_status:
-                connection_status = True
-                print("Connection Established!")
-
-            message = messages.to_dict()
-            if messages.get_type() == 'HEARTBEAT':
-                heartbeat_received = True
-                heartbeat_timeout = 3
-                print(message)
-            elif messages.get_type() == "MAVIDS":
-                alert_received = True
-                heartbeat_timeout = 3
-                print(message)
+def main():
+    pending_data = {}
+    established = False
+    serv_conn = False
+    serv_conn_counter = 3
+    counter = 3
+    mav = mavutil.mavlink_connection('/dev/ttyTHS1', baud=57600, source_system=11)
+    
+    while True:
+        try:
+            messages = mav.recv_match(blocking=False, type=['HEARTBEAT', 'MAVIDS'])
+            if (not messages and established):
+                counter -= 1
+            elif messages:
+                print(messages.get_srcSystem())
+                if messages.get_type() == 'HEARTBEAT' and int(messages.get_srcSystem()) == 10:
+                    established = True
+                    counter = 3
+                    print(messages)
+                elif int(messages.get_srcSystem()) == 1:
+                    continue
+                else:
+                    counter -= 1
             else:
-                heartbeat_timeout -= 1
-                pass
-    #except Exception as e:
-    #   print(e)
-    #   established = False
-        # if heartbeat_timeout == 0 and connection_status:
-        #     print("Connection lost!")
-        #     connection_status = False
-        # else:
-        #     heartbeat_timeout -= 1
-        # uav_link = mavutil.mavlink_connection('udpin:0.0.0.0:14551')
+                counter -= 1
 
 
+            if counter < 0:
+                established = False
+
+            try:
+                serv_resp = requests.get('http://127.0.0.1:8000/heartbeat/', json={
+                    'established': established
+                }, timeout=1)
+                
+                if serv_resp.status_code == 200:
+                    data = serv_resp.json()
+                    del data['timestamp']
+                    if pending_data != data:
+                        pending_data = data
+                        print(pending_data)
+                    serv_conn = True
+                else:
+                    serv_conn_counter -= 1
+
+            except:
+                serv_conn = False
+                serv_conn_counter -= 1
+
+            if established:
+                send_message(mav)
+
+            if serv_conn_counter <= 0:
+                return
+
+            #except Exception as e:
+            #   print(e)
+            #   established = False
+                # if heartbeat_timeout == 0 and connection_status:
+                #     print("Connection lost!")
+                #     connection_status = False
+                # else:
+                #     heartbeat_timeout -= 1
+                # uav_link = mavutil.mavlink_connection('udpin:0.0.0.0:14551')
+            time.sleep(1)
+        except:
+            mav = mavutil.mavlink_connection('/dev/ttyTHS1', baud=57600, source_system=11)
 
 
 def parse_mavids(message):
-    print("sending")
+    print("sending", time.time())
     if message.target_system == 1:
         if message.message_mode[1] == 1:
             attack_dict = {"time_usec":message.time_usec, "alert_id":message.alert_id, "attack_name":message.attack_name, "attack_score":message.attack_score}
@@ -154,13 +156,15 @@ def ignore_alert():
 """
 function to test sending of messages. Sends a heartbeat along with a MAVIDS message.
 """
-def send_message():
-    global uav_link
-    print("sending")
-    uav_link.mav.heartbeat_send(type=2, autopilot=12, base_mode=81, custom_mode=65536, system_status=3,
+def send_message(mav):
+    print("sending", time.time())
+    mav.mav.heartbeat_send(type=2, autopilot=12, base_mode=81, custom_mode=65536, system_status=3,
                                 mavlink_version=3)
-    uav_link.mav.heartbeat_send(type=6, autopilot=8, base_mode=192, custom_mode=0, system_status=4, mavlink_version=3)
+    #uav_link.mav.heartbeat_send(type=6, autopilot=8, base_mode=192, custom_mode=0, system_status=4, mavlink_version=3)
     # uav_link.mav.mavids_send(int(time.time()), int(0), int('10000000', 2), int(0), b'NAN', float(0), b'AAAAAA', int(1),
     #                          int(1), int('11000000', 2))
     # print("hello")
     #listen_link()
+
+
+main()

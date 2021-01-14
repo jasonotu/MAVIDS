@@ -1,10 +1,12 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
 from django.contrib.auth import login, authenticate
-from .models import Settings
-from .utils import train_OneClassSVM, train_LocalOutlierFactor, train_Autoencoder
+from .models import Settings, Connection
+from .utils import *
 from .mav_util import *
 from background_task import background
+import json
 
 def login(request):
     if request.method == 'POST':
@@ -20,6 +22,7 @@ def login(request):
 @login_required()
 def dashboard(request):
     listen_link(repeat=1, repeat_until=None)
+    print("hello")
 
     return render(request, 'gcsclient/dashboard.html')
 
@@ -52,21 +55,50 @@ def settings(request):
 def training(request):
     output = ''
     if request.method == 'POST':
-        if request.POST.get('ocsvm') == 'on':
-            output += "\n=======One-Class SVM=======\n"
-            output += train_OneClassSVM()
-        if request.POST.get('autoencoder') == 'on':
-            output += "\n========Autoencoder========\n"
-            output += train_Autoencoder()
-        if request.POST.get('lof') == 'on':
-            output += "\n=======Local Outlier Factor=======\n"
-            output += train_LocalOutlierFactor()
+        returned_df = read_file()
+        # if request.POST.get('ocsvm') == 'on':
+        #     output += "\n=======One-Class SVM=======\n"
+        #     output += train_OneClassSVM()
+        # if request.POST.get('autoencoder') == 'on':
+        #     output += "\n========Autoencoder========\n"
+        #     output += train_Autoencoder()
+        # if request.POST.get('lof') == 'on':
+        #     output += "\n=======Local Outlier Factor=======\n"
+        #     output += train_LocalOutlierFactor()
 
     context = {
-        'output': output
+        'output': 'hello'
     }
     return render(request, 'gcsclient/training.html', context)
 
 @login_required()
 def reports(request):
     return render(request, 'gcsclient/reports.html')
+
+def heartbeat(request):
+    setting = Settings.objects.first()
+    connection = Connection.objects.first()
+    
+    if not connection:
+        connection = Connection()
+        connection.save()
+
+    json_req = json.loads(request.body)
+
+    if json_req['established'] != connection.established:
+        connection.established = json_req['established']
+        connection.save()
+
+    modules = ""
+    modules += str(int(setting.dos_enabled))
+    modules += str(int(setting.gps_enabled))
+    modules += "000000"
+    data = {'timestamp': time.time(), 'default_action': setting.default_action, 'default_initiate_time':setting.default_initiate_time, 'default_return_time':setting.default_return_time, 'modules_enabled':modules}
+    return HttpResponse(json.dumps(data), content_type='application/json')
+
+def state(request):
+    connection = Connection.objects.first()
+    print(connection.established)
+    data = {'established': connection.established}
+
+    return HttpResponse(json.dumps(data), content_type='application/json')
