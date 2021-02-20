@@ -32,7 +32,7 @@ python manage.py createsuperuser
 ```
 A dashboard user can now be created in the Django backend: *http://127.0.0.1:8000/admin/login*
 
-###Training and tuning
+### Training and tuning
 
 Explain how to get logs for training
 
