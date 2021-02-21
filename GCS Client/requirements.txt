@@ -56,6 +56,7 @@ protobuf==3.11.3
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pymavlink==2.4.7
+pyserial==3.5
 python-dateutil==2.8.1
 python-qt-binding==0.4.3
 pytz==2019.3
