@@ -19,7 +19,7 @@ pip install -r requirements.txt
 ```
 Make migrations and migrate:
 ```bash
-python manage.py makemigrations
+python manage.py makemigrations gcsclient
 python manage.py migrate
 ```
 Run the webserver:
