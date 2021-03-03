@@ -6,7 +6,7 @@ The Micro Air Vehicle Intrusion Detection System (MAVIDS)  is a machine learning
 
 ### Installation
 
-MAVIDS is only supported on linux using Python 3.
+MAVIDS is only supported on linux using Python 3.7.
 
 Clone the repo:
 ```bash
