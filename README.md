@@ -1,5 +1,7 @@
 # MAVIDS
 
+*Work in progress*
+
 The Micro Air Vehicle Intrusion Detection System (MAVIDS)  is a machine learning-based IDS for UAVs that use the MAVLink communication protocol.
 
 [TOC]
