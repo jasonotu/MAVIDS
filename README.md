@@ -1,6 +1,6 @@
 # MAVIDS
 
-*Work in progress*
+*This project was a PoC and is not actively being worked on. It now requires some TLC to become fully operational"
 
 The Micro Air Vehicle Intrusion Detection System (MAVIDS)  is a machine learning-based IDS for UAVs that use the MAVLink communication protocol.
 
@@ -39,7 +39,5 @@ A dashboard user can now be created in the Django backend: *http://127.0.0.1:800
 Explain how to get logs for training
 
 ### Credits
-
-This project was developed by: [@jasonotu](https://github.com/jasonotu), [@ThaniSangarapillai](https://github.com/ThaniSangarapillai), [@OmarMinawi3](https://github.com/OmarMinawi3)
 
 The [PX4 Autopilot](https://px4.io/) was used for testing along with a number of tools from the PX4 project such as Gazebo plugins and ULog scripts.
